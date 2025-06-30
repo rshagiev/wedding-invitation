@@ -78,7 +78,18 @@
             animation: fadeInBody 1s 0.2s ease-out forwards;
         }
         @keyframes fadeInBody { to { opacity: 1; } }
+        
+        @keyframes shake-it {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  20% { transform: translateX(-3px) rotate(-2deg); }
+  40% { transform: translateX(3px) rotate(2deg); }
+  60% { transform: translateX(-3px) rotate(-1deg); }
+  80% { transform: translateX(3px) rotate(1deg); }
+}
 
+#rsvp-message.party-animal-message {
+  animation: shake-it 0.7s ease-in-out infinite;
+}
         .container { max-width: 800px; margin: 0 auto; padding: 0 20px; }
         h2 { font-family: var(--font-headers); font-weight: 700; font-size: 2.8rem; text-align: center; margin-bottom: 70px; }
         section { padding: 120px 0; }
@@ -199,6 +210,40 @@
         .color-palette { display: flex; justify-content: center; gap: 15px; margin-top: 20px; }
         .palette-color { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #e6ddd7; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         
+        /* --- СТИЛИ ДЛЯ ПАСХАЛКИ "ПЬЯНАЯ ФОРМА" --- */
+
+/* Контейнер для предупреждения (изначально скрыт) */
+.drunk-warning-message {
+    text-align: center;
+    font-weight: 500;
+    color: var(--color-accent-dark);
+    margin-bottom: 25px;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: opacity 0.4s ease, max-height 0.4s ease, margin-bottom 0.4s ease;
+}
+
+/* Класс, который делает предупреждение видимым */
+.drunk-warning-message.visible {
+    opacity: 1;
+    max-height: 100px; /* Достаточно места для текста */
+}
+
+/* Сама анимация "пьяного зрения" */
+@keyframes drunk-vision {
+  0%   { transform: translate(0, 0) rotate(0); filter: blur(0); }
+  25%  { transform: translate(-5px, 3px) rotate(-1deg); filter: blur(0.5px); }
+  50%  { transform: translate(5px, -3px) rotate(1deg); filter: blur(0); }
+  75%  { transform: translate(-3px, 2px) rotate(0.5deg); filter: blur(1px); }
+  100% { transform: translate(0, 0) rotate(0); filter: blur(0); }
+}
+
+/* Класс, который применяет анимацию к форме */
+#rsvp-container.is-drunk {
+  animation: drunk-vision 5s ease-in-out infinite;
+}
+
         /* --- АНКЕТА ГОСТЯ (RSVP) --- */
         /* Новый класс для "Да, я приду!" */
 #rsvp-message.success-message,
@@ -536,9 +581,13 @@
                         </div>
                     </div>
                 </div>
+                     <div id="drunk-warning" class="drunk-warning-message">
+                        <p>⚠️ Ого! Нам не жалко, но вы хоть закусывайте...</p>
+                    </div>
+
                     <div style="text-align: center;">
-          <button type="submit" class="btn-submit">Отправить ответ</button>
-        </div>
+                        <button type="submit" class="btn-submit">Отправить ответ</button>
+                    </div>
       </form>
     </div>
   </div>
@@ -694,31 +743,67 @@
         const initRsvpForm = () => {
             const rsvpForm = document.getElementById('rsvp-form');
             if (!rsvpForm) return;
-
+            
+            // Получаем нужные элементы для управления эффектами
+            const rsvpContainer = document.getElementById('rsvp-container');
             const alcoholPrefs = document.getElementById('alcohol-prefs');
             const attendanceRadios = rsvpForm.querySelectorAll('input[name="attendance"]');
             const nonAlcoOption = document.getElementById('non-alco-option');
-            const allDrinkCheckboxes = rsvpForm.querySelectorAll('#drinks-list input[type="checkbox"]');
+            const alcoholicCheckboxes = rsvpForm.querySelectorAll('#drinks-list input[type="checkbox"]:not(#non-alco-option)');
+            const drunkWarningDiv = document.getElementById('drunk-warning');
 
+            // Функция для проверки, нужно ли включать "пьяный режим"
+            const checkDrunkMode = () => {
+                const chosenDrinksCount = Array.from(alcoholicCheckboxes).filter(cb => cb.checked).length;
+                const totalAlcoholicDrinks = alcoholicCheckboxes.length;
+                
+                // Если выбраны все алкогольные напитки и их больше нуля
+                if (totalAlcoholicDrinks > 0 && chosenDrinksCount === totalAlcoholicDrinks) {
+                    rsvpContainer.classList.add('is-drunk');
+                    drunkWarningDiv.classList.add('visible');
+                } else {
+                    // В противном случае, возвращаем всё в норму
+                    rsvpContainer.classList.remove('is-drunk');
+                    drunkWarningDiv.classList.remove('visible');
+                }
+            };
+            
+            // Вешаем слушатель на каждый алкогольный чекбокс
+            alcoholicCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', checkDrunkMode);
+            });
+
+            // Логика для отображения/скрытия блока с напитками
             attendanceRadios.forEach(radio => 
                 radio.addEventListener('change', (e) => {
-                    alcoholPrefs.style.display = e.target.value === 'Да, буду!' ? 'block' : 'none';
+                    const isAttending = e.target.value === 'Да, буду!';
+                    alcoholPrefs.style.display = isAttending ? 'block' : 'none';
+                    // Если гость передумал идти, отключаем "пьяный режим"
+                    if (!isAttending) {
+                        rsvpContainer.classList.remove('is-drunk');
+                        drunkWarningDiv.classList.remove('visible');
+                    }
                 })
             );
 
+            // Логика для опции "Не пью алкоголь"
             nonAlcoOption?.addEventListener('change', (e) => {
                 const isChecked = e.target.checked;
-                allDrinkCheckboxes.forEach(checkbox => { 
-                    if (checkbox !== nonAlcoOption) {
-                        checkbox.disabled = isChecked; 
-                        if (isChecked) checkbox.checked = false;
-                    }
+                alcoholicCheckboxes.forEach(checkbox => { 
+                    checkbox.disabled = isChecked; 
+                    if (isChecked) checkbox.checked = false;
                 });
+                // При выборе "не пью" отключаем "пьяный режим"
+                checkDrunkMode();
             });
 
+            // Обработчик отправки формы (теперь он стал проще)
             rsvpForm.addEventListener('submit', (event) => {
                 event.preventDefault();
                 const submitButton = rsvpForm.querySelector('button[type="submit"]');
+                
+                // Перед отправкой отключаем анимацию, чтобы не мешала
+                rsvpContainer.classList.remove('is-drunk');
                 
                 submitButton.disabled = true;
                 submitButton.classList.add('loading');
@@ -726,10 +811,9 @@
                 const formData = new FormData(rsvpForm);
                 const name = formData.get('name')?.trim() || 'дорогой гость';
                 const attendance = formData.get('attendance');
-                const rsvpContainer = document.getElementById('rsvp-container');
                 
                 const showMessage = (isSuccess) => {
-                    let messageText, iconSvg;
+                    let messageText, iconSvg, messageClass = '';
                     if (isSuccess) {
                         if (attendance === 'Да, буду!' && typeof confetti === 'function') {
                             confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
@@ -738,15 +822,13 @@
                             ? `Спасибо, ${name}! Ваш ответ принят. Мы будем вас ждать!`
                             : `Спасибо за ответ, ${name}! Нам очень жаль, что у вас не получится присутствовать.`;
                         iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                        messageClass = attendance === 'Да, буду!' ? 'success-message' : '';
                     } else {
                         messageText = 'Произошла ошибка при отправке. Пожалуйста, попробуйте еще раз или свяжитесь с нами напрямую.';
                         iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>`;
                     }
                     
                     if (isSuccess) {
-                        // Определяем, какой класс добавить, в зависимости от ответа
-    const messageClass = attendance === 'Да, буду!' ? 'success-message' : '';
-     // Добавляем класс в разметку
                          rsvpContainer.innerHTML = `<div id="rsvp-message" class="${messageClass}">${iconSvg}<span>${messageText}</span></div>`;
                     } else {
                         let errorDiv = rsvpContainer.querySelector('.error-message');
@@ -764,11 +846,13 @@
                     }
                 };
 
+                // Локальная симуляция отправки (для file://)
                 if (window.location.protocol === 'file:') {
                     setTimeout(() => showMessage(true), 1500);
                     return;
                 }
 
+                // Отправка на Netlify
                 fetch('/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
