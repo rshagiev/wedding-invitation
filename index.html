@@ -657,36 +657,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script>
-    
-    // Весь код теперь обернут в async-функцию, чтобы мы могли использовать 'await'
-    // для ожидания загрузки файла с гостями.
-    (async function() {
-        // --- НОВАЯ ФУНКЦИЯ ДЛЯ ЗАГРУЗКИ СПИСКА ГОСТЕЙ ---
-        async function loadGuestList() {
-            try {
-                // Запрашиваем файл guests.txt с сервера
-                const response = await fetch('guests.txt');
-                // Если файл не найден (ошибка 404) или другая серверная ошибка
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                // Получаем текстовое содержимое файла
-                const text = await response.text();
-                // Превращаем текст в массив:
-                // 1. .split('\n') - разделяем по переносу строки
-                // 2. .filter(name => name.trim() !== '') - убираем пустые строки
-                return text.split('\n').filter(name => name.trim() !== '');
-            } catch (error) {
-                console.error("Не удалось загрузить список гостей. Убедитесь, что файл guests.txt существует и доступен. Ошибка:", error);
-                // Возвращаем пустой массив, чтобы сайт не сломался
-                return [];
-            }
-        }
-        
-        // СНАЧАЛА ЗАГРУЖАЕМ ГОСТЕЙ
-        const guestList = await loadGuestList();
-    
-    // --- ЦЕНТРАЛЬНЫЙ КОНФИГУРАЦИОННЫЙ БЛОК (БЕЗ СПИСКА ГОСТЕЙ) ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- ЦЕНТРАЛЬНЫЙ КОНФИГУРАЦИОННЫЙ БЛОК ---
         const config = {
             weddingDate: "Aug 29, 2025 17:00:00",
             yandexMapsURL: "https://yandex.ru/maps/-/CHgd5S5L",
@@ -695,7 +667,30 @@
                 details: "Празднование свадьбы Руслана и Майи. Не забудьте хорошее настроение!\n\nДресс-код: просим поддержать цветовую гамму свадьбы и воздержаться от белого цвета.",
                 location: "Банкетный зал 'Лебединое озеро', г. Уфа",
                 dates: "20250829T120000Z/20250829T180000Z"
-            }
+            },
+             guestList: [
+        "Марат Шагиев",
+        "Людмила Шагиева",
+        "Лидия Федотова",
+        "Александр Федотов",
+        "Дмитрий Федотов",
+        "Инна Федотова",
+        "Даша Федотова",
+        "Ляля Шагиева",
+        "Рафаиль Шагиев",
+        "Ринат Шагиев",
+        "Рустем Шагиева",
+        "Ибрагим Шагиев",
+        "Лиля жена рината",
+        "Ширин Шагиева",
+        "Вениамин Шаронов",
+        "Лиля Ганеева",
+        "Кирилл Никитин",
+        "Алена Никитина",
+        "Дамир Ганеев",
+        "Нася Ганеева",
+        "Никита Наркевич",
+    ]
         };
 
         // --- ОБЩИЕ ФУНКЦИИ ---
@@ -722,56 +717,68 @@
             }
         };
 
-    // Функция автозаполнения теперь ПРИНИМАЕТ список гостей как аргумент
-        const initCustomAutocomplete = (guests) => {
-            const guestInput = document.getElementById('name');
-            const suggestionsContainer = document.getElementById('name-suggestions');
+        const initCustomAutocomplete = () => {
+    const guestInput = document.getElementById('name');
+    const suggestionsContainer = document.getElementById('name-suggestions');
+    
+    if (!guestInput || !suggestionsContainer || !config.guestList) return;
+
+    // Функция для обновления и показа подсказок
+    const updateSuggestions = (filteredGuests) => {
+        // Очищаем старые подсказки
+        suggestionsContainer.innerHTML = '';
+        
+        if (filteredGuests.length === 0) {
+            suggestionsContainer.style.display = 'none';
+            return;
+        }
+
+        // Создаем и добавляем новые элементы
+        filteredGuests.forEach(guestName => {
+            const item = document.createElement('div');
+            item.className = 'suggestion-item';
+            item.textContent = guestName;
             
-            if (!guestInput || !suggestionsContainer || !guests || guests.length === 0) {
-                 console.warn("Функция автозаполнения не будет работать, так как список гостей пуст.");
-                 return;
-            }
-
-            const updateSuggestions = (filteredGuests) => {
-                suggestionsContainer.innerHTML = '';
-                if (filteredGuests.length === 0) {
-                    suggestionsContainer.style.display = 'none';
-                    return;
-                }
-                filteredGuests.forEach(guestName => {
-                    const item = document.createElement('div');
-                    item.className = 'suggestion-item';
-                    item.textContent = guestName;
-                    item.addEventListener('click', () => {
-                        guestInput.value = guestName;
-                        suggestionsContainer.style.display = 'none';
-                        guestInput.dispatchEvent(new Event('input', { bubbles: true }));
-                        guestInput.focus();
-                    });
-                    suggestionsContainer.appendChild(item);
-                });
-                suggestionsContainer.style.display = 'block';
-            };
-
-            guestInput.addEventListener('input', () => {
-                const inputText = guestInput.value.toLowerCase();
-                if (inputText.length < 3) {
-                    suggestionsContainer.style.display = 'none';
-                    return;
-                }
-                // Фильтруем по переданному списку 'guests'
-                const filteredGuests = guests.filter(guest => 
-                    guest.toLowerCase().includes(inputText)
-                );
-                updateSuggestions(filteredGuests);
+            // Обработчик клика на подсказку
+            item.addEventListener('click', () => {
+                guestInput.value = guestName; // Вставляем выбранное имя
+                suggestionsContainer.style.display = 'none'; // Скрываем контейнер
+                // "Уведомляем" поле, что значение изменилось, чтобы label сработал
+                guestInput.dispatchEvent(new Event('input', { bubbles: true }));
+                guestInput.focus();
             });
+            
+            suggestionsContainer.appendChild(item);
+        });
 
-            document.addEventListener('click', (e) => {
-                if (!guestInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
-                    suggestionsContainer.style.display = 'none';
-                }
-            });
-        };
+        suggestionsContainer.style.display = 'block';
+    };
+
+    // Главный обработчик ввода текста
+    guestInput.addEventListener('input', () => {
+        const inputText = guestInput.value.toLowerCase();
+
+        // Показываем подсказки только после ввода 3 символов
+        if (inputText.length < 3) {
+            suggestionsContainer.style.display = 'none';
+            return;
+        }
+
+        // Фильтруем список гостей
+        const filteredGuests = config.guestList.filter(guest => 
+            guest.toLowerCase().includes(inputText)
+        );
+        
+        updateSuggestions(filteredGuests);
+    });
+
+    // Скрываем подсказки, если пользователь кликнул в другом месте
+    document.addEventListener('click', (e) => {
+        if (!guestInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+            suggestionsContainer.style.display = 'none';
+        }
+    });
+};
 
         // --- АНИМАЦИИ ПРИ СКРОЛЛЕ ---
         const initScrollAnimations = () => {
@@ -1002,27 +1009,24 @@
             });
         };
         
-// --- ИНИЦИАЛИЗАЦИЯ ВСЕХ ФУНКЦИЙ ---
-        document.addEventListener('DOMContentLoaded', () => {
-            if (history.scrollRestoration) {
-                history.scrollRestoration = 'manual';
-            }
-            window.scrollTo(0, 0);
+        // --- ИНИЦИАЛИЗАЦИЯ ВСЕХ ФУНКЦИЙ ---
+        if (history.scrollRestoration) {
+            history.scrollRestoration = 'manual';
+        }
+        window.scrollTo(0,0);
         
-            // Вызываем все остальные функции, как и раньше
-            applyConfig();
-            initScrollAnimations();
-            initParallax();
-            initNavHighlighting();
-            initCountdown();
-            initUIControls();
-            initRsvpForm();
+        applyConfig();
+        initScrollAnimations();
+        initParallax();
+        initNavHighlighting();
+        initCountdown();
+        initUIControls();
+        initRsvpForm();
 
-            // А вот здесь передаем наш загруженный список в функцию!
-            initCustomAutocomplete(guestList); 
-        });
+       
+    initCustomAutocomplete(); // <-- Добавляем вызов нашей новой функции
 
-})();
+    });
 </script>
 </body>
 </html>
