@@ -255,6 +255,34 @@
 
 
         /* --- АНКЕТА ГОСТЯ (RSVP) --- */
+        /* --- СТИЛИ ДЛЯ КАСТОМНЫХ ПОДСКАЗОК --- */
+.suggestions-container {
+    display: none; /* Изначально скрыт */
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: var(--color-white);
+    border: 1px solid #d2cbc6;
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    box-shadow: 0 8px 15px rgba(0,0,0,0.08);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 10;
+}
+.suggestion-item {
+    padding: 12px 20px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: background-color 0.2s;
+}
+.suggestion-item:hover {
+    background-color: var(--color-bg);
+}
+.suggestion-item:last-child {
+    border-radius: 0 0 12px 12px;
+}
         /* Новый класс для "Да, я приду!" */
         #rsvp-message.success-message,
         #rsvp-message.success-message svg {
@@ -581,8 +609,9 @@
           <svg xmlns="http://www.w3.org/2000/svg" class="input-icon" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 12c2.21 0 4-1.79 4-4S14.21 4 12 4 8 5.79 8 8s1.79 4 4 4z M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z" />
           </svg>
-          <input type="text" id="name" name="name" class="form-input" placeholder=" " required>
+          <input type="text" id="name" name="name" class="form-input" placeholder=" " required autocomplete="off">
           <label for="name" class="form-label">Ваше имя и фамилия</label>
+          <div id="name-suggestions" class="suggestions-container"></div>
         </div>
 
         <div class="form-group">
@@ -628,8 +657,36 @@
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // --- ЦЕНТРАЛЬНЫЙ КОНФИГУРАЦИОННЫЙ БЛОК ---
+    
+    // Весь код теперь обернут в async-функцию, чтобы мы могли использовать 'await'
+    // для ожидания загрузки файла с гостями.
+    (async function() {
+        // --- НОВАЯ ФУНКЦИЯ ДЛЯ ЗАГРУЗКИ СПИСКА ГОСТЕЙ ---
+        async function loadGuestList() {
+            try {
+                // Запрашиваем файл guests.txt с сервера
+                const response = await fetch('guests.txt');
+                // Если файл не найден (ошибка 404) или другая серверная ошибка
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                // Получаем текстовое содержимое файла
+                const text = await response.text();
+                // Превращаем текст в массив:
+                // 1. .split('\n') - разделяем по переносу строки
+                // 2. .filter(name => name.trim() !== '') - убираем пустые строки
+                return text.split('\n').filter(name => name.trim() !== '');
+            } catch (error) {
+                console.error("Не удалось загрузить список гостей. Убедитесь, что файл guests.txt существует и доступен. Ошибка:", error);
+                // Возвращаем пустой массив, чтобы сайт не сломался
+                return [];
+            }
+        }
+        
+        // СНАЧАЛА ЗАГРУЖАЕМ ГОСТЕЙ
+        const guestList = await loadGuestList();
+    
+    // --- ЦЕНТРАЛЬНЫЙ КОНФИГУРАЦИОННЫЙ БЛОК (БЕЗ СПИСКА ГОСТЕЙ) ---
         const config = {
             weddingDate: "Aug 29, 2025 17:00:00",
             yandexMapsURL: "https://yandex.ru/maps/-/CHgd5S5L",
@@ -664,7 +721,58 @@
                 calendarLink.setAttribute('target', '_blank');
             }
         };
-        
+
+    // Функция автозаполнения теперь ПРИНИМАЕТ список гостей как аргумент
+        const initCustomAutocomplete = (guests) => {
+            const guestInput = document.getElementById('name');
+            const suggestionsContainer = document.getElementById('name-suggestions');
+            
+            if (!guestInput || !suggestionsContainer || !guests || guests.length === 0) {
+                 console.warn("Функция автозаполнения не будет работать, так как список гостей пуст.");
+                 return;
+            }
+
+            const updateSuggestions = (filteredGuests) => {
+                suggestionsContainer.innerHTML = '';
+                if (filteredGuests.length === 0) {
+                    suggestionsContainer.style.display = 'none';
+                    return;
+                }
+                filteredGuests.forEach(guestName => {
+                    const item = document.createElement('div');
+                    item.className = 'suggestion-item';
+                    item.textContent = guestName;
+                    item.addEventListener('click', () => {
+                        guestInput.value = guestName;
+                        suggestionsContainer.style.display = 'none';
+                        guestInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        guestInput.focus();
+                    });
+                    suggestionsContainer.appendChild(item);
+                });
+                suggestionsContainer.style.display = 'block';
+            };
+
+            guestInput.addEventListener('input', () => {
+                const inputText = guestInput.value.toLowerCase();
+                if (inputText.length < 3) {
+                    suggestionsContainer.style.display = 'none';
+                    return;
+                }
+                // Фильтруем по переданному списку 'guests'
+                const filteredGuests = guests.filter(guest => 
+                    guest.toLowerCase().includes(inputText)
+                );
+                updateSuggestions(filteredGuests);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!guestInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+                    suggestionsContainer.style.display = 'none';
+                }
+            });
+        };
+
         // --- АНИМАЦИИ ПРИ СКРОЛЛЕ ---
         const initScrollAnimations = () => {
             const fadeInElements = document.querySelectorAll('.fade-in');
@@ -894,20 +1002,27 @@
             });
         };
         
-        // --- ИНИЦИАЛИЗАЦИЯ ВСЕХ ФУНКЦИЙ ---
-        if (history.scrollRestoration) {
-            history.scrollRestoration = 'manual';
-        }
-        window.scrollTo(0,0);
+// --- ИНИЦИАЛИЗАЦИЯ ВСЕХ ФУНКЦИЙ ---
+        document.addEventListener('DOMContentLoaded', () => {
+            if (history.scrollRestoration) {
+                history.scrollRestoration = 'manual';
+            }
+            window.scrollTo(0, 0);
         
-        applyConfig();
-        initScrollAnimations();
-        initParallax();
-        initNavHighlighting();
-        initCountdown();
-        initUIControls();
-        initRsvpForm();
-    });
+            // Вызываем все остальные функции, как и раньше
+            applyConfig();
+            initScrollAnimations();
+            initParallax();
+            initNavHighlighting();
+            initCountdown();
+            initUIControls();
+            initRsvpForm();
+
+            // А вот здесь передаем наш загруженный список в функцию!
+            initCustomAutocomplete(guestList); 
+        });
+
+})();
 </script>
 </body>
 </html>
